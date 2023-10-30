@@ -1,0 +1,274 @@
+---
+-- fUNCTION GET_DDL
+--if i want to extract the ddl of any table 
+    //get_ddl(object_type,object_name)
+    select get_ddl('table','my_table');
+
+-- my_table   
+    drop table if exists my_table;
+    create table my_table (
+      num number,
+      num10_1 number(10,1),
+      decimal_20_2 decimal(20,2),
+      numeric numeric(30,3),
+      int int,
+      integer integer
+    );
+
+    desc table my_table;
+    
+    insert into my_table(num,num10_1,decimal_20_2,numeric,int,integer) 
+    values(10,22.2,33.33,123456789,987654321,12112);
+    
+    
+    insert into my_table(num,num10_1,decimal_20_2,numeric,int,integer) 
+    values (20,22.2,33.33,123456789,987654321,12112), (30,22.2,33.33,123456789,987654321,12112);
+
+
+--my_text_table
+    drop table if exists my_text_table;
+    create table my_text_table (
+        id int autoincrement,
+        v varchar,          //VARCHAR(16777216) i.e by default 16mb taken
+        v50 varchar(50),
+        c char,
+        c10 char(10),
+        s string,
+        s20 string(20),
+        t text,
+        t30 text(30)
+        );
+        
+    insert into my_text_table(v,v50,c,c10,s,s20,t,t30) 
+     values('a','b','c','d','e','f','g','h');
+
+-- my_boolean_table
+     create or replace table my_boolean_table(
+        b boolean,
+        n number,
+        s string);
+        
+             
+     insert into my_boolean_table values (true, 1, 'yes'), (false, 0, 'no'), (null, null, null);  //null is a null value, null is not false value
+                                                                                                  //within the boolean
+
+--my_timestamp_table
+    
+     drop table if exists my_ts_tablel;
+     create or replace table my_ts_table(
+       today_date date default current_date(),
+       now_time time default current_time(),
+       now_ts timestamp default current_timestamp()
+      );
+               
+      -- insert one record
+      insert into my_ts_table (today_date,now_time,now_ts) values (current_date, current_time,current_timestamp);
+      insert into my_ts_table (now_time,now_ts) values (current_time,current_timestamp); 
+      //even though we have inserted a data set with time zone, internally it is stored with no time zone because you might be accessing data set at particular time zone but snowrflake instance can be runing in eirope or any other place  
+      
+      -- now select the data
+      select * from my_ts_table;
+      
+      -- change the session level timezone and see the result
+      alter session set timezone = 'America/Los_Angeles';
+      alter session set timezone = 'Japan';
+      alter session set timestamp_output_format = 'YYYY-MM-DD HH24:MI:SS.FF';
+
+---------------------------------------------
+
+-- table as select 
+    -- Create table as select
+        create table my_ctas as select * from my_db1.my_schema.my_table;
+
+
+
+// =====================================================================
+-- lets quickly understand the const
+    drop table if exists my_constaints_table;
+    create table my_constaints_table (
+      emp_pk string primary key,
+      fname string not null,
+      lname string not null,
+      flag string default 'active',
+      unique_code string unique
+    );  -- Snowflake supports defining and maintaining constraints, but does            not enforce them, except for NOT NULL constraints, which are                 always enforced.so you have to take care of PK and Uniqueness,               only Not-null is applifed
+
+
+//////////////////////////////////////////
+--loading the data into internal stage from local system and then from 
+--internal stage to the table. 
+
+--creating proper file format first 
+ 
+   create or replace file format my_csv_format
+                                  type = 'CSV'
+                                  field_delimiter=','
+                                  skip_header =1;
+--create an internal stage 
+   create or replace stage my_stg
+                             file_format = 'my_csv_format';
+
+--using snowsql put command load the local data into stage 
+   PUT file:// C:\Users\admin\Downloads\name_dfdf.csv @my_stg
+
+--once the file in loaded into stage check/read the data from the stage using sql command but create new 4
+--file format first 
+create or replace file format 'my_new_format' type= 'CSV' field_delimiter= ',';
+select t1.$,t2.$, t.$3,t.$4, t.$5, t.$6 from @my_stg(file_format =>'my_new_format' )t
+
+  
+                         
+                    
+
+########################################################################################################
+
+
+// =========================================================
+ --loading data from stg system 
+ --....create a stage using webui 
+ --create or replace file format my_csv_format
+--                                              type = 'CSV'
+--                                              field_delimiter=','
+--                                              skip_header =1;
+
+-- --create or replace stage my_stg
+--                                              file_format=my_csv_format;
+
+
+ --loading data via put command 
+  --PUT file:// C:\Users\admin\Downloads\name_dfdf.csv @my_stg
+
+  show stages;
+  
+  list @my_stg;
+  list @MY_STG;
+  
+  /* sample data
+    100,22.2,33.33,123456789,987654321,12112
+    200,22.2,33.33,123456789,987654321,12112
+    300,22.2,33.33,123456789,987654321,12112
+  */
+
+    
+    -- lets view the data first
+    create or replace file format my_format type = 'csv' field_delimiter = ',';
+    select t.$1, t.$2, t.$3,t.$4, t.$5, t.$6 from @my_stg (file_format => 'my_format') t; 
+    
+    -- now we can use copy command to load data
+    
+    drop table if exists my_stg_table;
+    create table my_stg_table (
+      num number,
+      num10_1 number(10,1),
+      decimal_20_2 decimal(20,2),
+      numeric numeric(30,3),
+      int int,
+      integer integer
+    );
+    
+    -- lets check data
+    select * from my_stg_table;
+    
+    -- now load data via copy command
+    copy into my_stg_table 
+    from @my_stg;
+
+    -- lets check data
+    select * from my_stg_table;
+    
+    -- create using ctas
+    create table my_ctas_big_table as select * from "SNOWFLAKE_SAMPLE_DATA"."TPCH_SF100"."ORDERS";
+    
+    -- change the time travel to 30 days;
+    alter table my_ctas_big_table set data_retention_time_in_days=30;
+    
+    -- lets check the table before update
+    select * from my_ctas_big_table limit 10;
+    
+    -- lets change the status
+    select  O_ORDERSTATUS,count(1) from my_ctas_big_table group by O_ORDERSTATUS;
+    
+    -- update the data and see the storage cost now
+    update my_ctas_big_table set O_ORDERSTATUS ='o' where O_ORDERSTATUS = 'O';
+    
+    select  count(*) from my_ctas_big_table before (statement => '019f0d45-0b01-d7c5-0000-0001acbea735')
+    where  O_ORDERSTATUS = 'O';
+    
+    select  count(*) from my_ctas_big_table where  O_ORDERSTATUS = 'P';
+    
+    
+//=======================================
+-- Variant Data
+    create table json_weather_data (v variant);
+    desc table json_weather_data;
+
+    select * from json_weather_data;
+    
+    create stage nyc_weather
+    url = 's3://snowflake-workshop-lab/weather-nyc';  --external stage 
+
+    -- list wheather
+    list @nyc_weather;
+    
+    -- copy from external stage into the table 
+    copy into json_weather_data 
+    from @nyc_weather 
+    file_format = (type=json);
+    
+    -- select data
+    select * from json_weather_data limit 10;
+    
+    -- create a view
+    create view json_weather_data_view as
+    select
+      v:time::timestamp as observation_time,
+      v:city.id::int as city_id,
+      v:city.name::string as city_name,
+      v:city.country::string as country,
+      v:city.coord.lat::float as city_lat,
+      v:city.coord.lon::float as city_lon,
+      v:clouds.all::int as clouds,
+      (v:main.temp::float)-273.15 as temp_avg,
+      (v:main.temp_min::float)-273.15 as temp_min,
+      (v:main.temp_max::float)-273.15 as temp_max,
+      v:weather[0].main::string as weather,
+      v:weather[0].description::string as weather_desc,
+      v:weather[0].icon::string as weather_icon,
+      v:wind.deg::float as wind_dir,
+      v:wind.speed::float as wind_speed
+    from json_weather_data
+    where city_id = 5128638;
+
+
+
+    create view weather_view as 
+    select 
+    v:city.coord
+
+    
+    select * from json_weather_data_view;
+    
+    -- create external table
+    create or replace external table json_weather_data_et (
+        time varchar AS (value:c1::varchar), 
+        ....
+    
+    )
+    with location=@nyc_weather
+    auto_refresh = false
+    file_format = (format_name = file_format)
+;
+
+
+// =======================================
+-- Temp & Transitent table
+    
+    // create a transitent table
+    create transitent table json_weather_data (v variant);
+    
+    // create a temporaty table 
+    create temporary table json_weather_data (v variant);
+
+
+
+    ---------------------------------------------
